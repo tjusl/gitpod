@@ -19,15 +19,14 @@ func clusterrole(ctx *common.RenderContext) ([]runtime.Object, error) {
 		&rbacv1.ClusterRole{
 			TypeMeta: common.TypeMetaClusterRole,
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      Component,
-				Namespace: ctx.Namespace,
-				Labels:    common.DefaultLabels(Component),
+				Name:   fmt.Sprintf("%s-ns-%s", ctx.Namespace, Component),
+				Labels: common.DefaultLabels(Component),
 			},
 			Rules: []rbacv1.PolicyRule{{
 				APIGroups:     []string{"policy"},
 				Resources:     []string{"podsecuritypolicies"},
 				Verbs:         []string{"use"},
-				ResourceNames: []string{fmt.Sprintf("%s-ns-registry-facade", ctx.Namespace)},
+				ResourceNames: []string{fmt.Sprintf("%s-ns-%s", ctx.Namespace, Component)},
 			}},
 		},
 	}, nil

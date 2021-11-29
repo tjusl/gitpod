@@ -13,4 +13,5 @@ var Objects = common.CompositeRenderFunc(
 	secrets,
 	service,
 	common.DefaultServiceAccount(Component),
+	rolebinding,
 )
