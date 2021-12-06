@@ -138,7 +138,7 @@ func hasUser(u *user.User) (bool, error) {
 }
 
 func addGroup(name string, gid int) error {
-	flavour := determineAdduserFlavour()
+	flavour := determineAddgroupFlavour()
 	if flavour == adduserUnknown {
 		return xerrors.Errorf("no addgroup command found")
 	}
@@ -172,6 +172,35 @@ func addUser(opts *user.User) error {
 func determineAdduserFlavour() adduserFlavour {
 	for flavour, gen := range adduserCommand {
 		args := gen(&user.User{})
+		var flags []string
+		for _, a := range args {
+			if len(a) > 0 && a[0] == '-' {
+				flags = append(flags, a)
+			}
+		}
+
+		rout, _ := exec.Command(args[0], "-h").CombinedOutput()
+		var (
+			out   = string(rout)
+			found = true
+		)
+		for _, f := range flags {
+			if !strings.Contains(out, f) {
+				found = false
+				break
+			}
+		}
+		if found {
+			return flavour
+		}
+	}
+
+	return adduserUnknown
+}
+
+func determineAddgroupFlavour() adduserFlavour {
+	for flavour, gen := range addgroupCommand {
+		args := gen("", 0)
 		var flags []string
 		for _, a := range args {
 			if len(a) > 0 && a[0] == '-' {
