@@ -182,12 +182,8 @@ export class ProjectsService {
         return this.projectDB.setProjectConfiguration(projectId, config);
     }
 
-    protected async getRepositoryFileProviderAndCommitContext(ctx: TraceContext, user: User, projectId: string): Promise<{fileProvider: FileProvider, commitContext: CommitContext}> {
-        const project = await this.getProject(projectId);
-        if (!project) {
-            throw new Error("Project not found");
-        }
-        const normalizedContextUrl = this.contextParser.normalizeContextURL(project.cloneUrl);
+    protected async getRepositoryFileProviderAndCommitContext(ctx: TraceContext, user: User, cloneUrl: string): Promise<{fileProvider: FileProvider, commitContext: CommitContext}> {
+        const normalizedContextUrl = this.contextParser.normalizeContextURL(cloneUrl);
         const commitContext = (await this.contextParser.handle(ctx, user, normalizedContextUrl)) as CommitContext;
         const { host } = commitContext.repository;
         const hostContext = this.hostContextProvider.get(host);
@@ -198,17 +194,35 @@ export class ProjectsService {
         return { fileProvider, commitContext };
     }
 
+    // FIXME(janx): Deprecated
     async fetchProjectRepositoryConfiguration(ctx: TraceContext, user: User, projectId: string): Promise<string | undefined> {
-        const { fileProvider, commitContext } = await this.getRepositoryFileProviderAndCommitContext(ctx, user, projectId);
+        const project = await this.getProject(projectId);
+        if (!project) {
+            throw new Error("Project not found");
+        }
+        return this.fetchRepositoryConfiguration(ctx, user, project.cloneUrl);
+    }
+
+    async fetchRepositoryConfiguration(ctx: TraceContext, user: User, cloneUrl: string): Promise<string | undefined> {
+        const { fileProvider, commitContext } = await this.getRepositoryFileProviderAndCommitContext(ctx, user, cloneUrl);
         const configString = await fileProvider.getGitpodFileContent(commitContext, user);
         return configString;
+    }
+
+    // FIXME(janx): Deprecated
+    async guessProjectConfiguration(ctx: TraceContext, user: User, projectId: string): Promise<string | undefined> {
+        const project = await this.getProject(projectId);
+        if (!project) {
+            throw new Error("Project not found");
+        }
+        return this.guessRepositoryConfiguration(ctx, user, project.cloneUrl);
     }
 
     // a static cache used to prefetch inferrer related files in parallel in advance
     private requestedPaths = new Set<string>();
 
-    async guessProjectConfiguration(ctx: TraceContext, user: User, projectId: string): Promise<string | undefined> {
-        const { fileProvider, commitContext } = await this.getRepositoryFileProviderAndCommitContext(ctx, user, projectId);
+    async guessRepositoryConfiguration(ctx: TraceContext, user: User, cloneUrl: string): Promise<string | undefined> {
+        const { fileProvider, commitContext } = await this.getRepositoryFileProviderAndCommitContext(ctx, user, cloneUrl);
         const cache: { [path: string]: Promise<string | undefined> } = {};
         const readFile = async (path: string) => {
             if (path in cache) {

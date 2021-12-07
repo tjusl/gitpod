@@ -23,7 +23,7 @@ import { openAuthorizeWindow } from "../provider-utils";
 
 const MonacoEditor = React.lazy(() => import('../components/MonacoEditor'));
 
-const TASKS = {
+export const TASKS = {
     NPM: `tasks:
   - init: npm install
     command: npm run start`,

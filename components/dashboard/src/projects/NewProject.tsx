@@ -20,6 +20,7 @@ import moment from "moment";
 import { UserContext } from "../user-context";
 import { trackEvent } from "../Analytics";
 import exclamation from "../images/exclamation.svg";
+import { TASKS } from "./ConfigureProject";
 
 export default function NewProject() {
     const location = useLocation();
@@ -34,6 +35,8 @@ export default function NewProject() {
     const [noOrgs, setNoOrgs] = useState<boolean>(false);
     const [showGitProviders, setShowGitProviders] = useState<boolean>(false);
     const [selectedRepo, setSelectedRepo] = useState<string | undefined>(undefined);
+    const [repoHasConfig, setRepoHasConfig] = useState<boolean>(false);
+    const [guessedConfigString, setGuessedConfigString] = useState<string | undefined>(undefined);
     const [selectedTeamOrUser, setSelectedTeamOrUser] = useState<Team | User | undefined>(undefined);
 
     const [showNewTeam, setShowNewTeam] = useState<boolean>(false);
@@ -84,10 +87,41 @@ export default function NewProject() {
     }, [teams]);
 
     useEffect(() => {
-        if (selectedTeamOrUser && selectedRepo) {
-            createProject(selectedTeamOrUser, selectedRepo);
+        if (!selectedRepo) {
+            return;
         }
-    }, [selectedTeamOrUser, selectedRepo]);
+        (async () => {
+            const repo = reposInAccounts.find(r => r.account === selectedAccount && (r.path ? r.path === selectedRepo : r.name === selectedRepo));
+            if (!repo) {
+                return;
+            }
+            const guessedConfigPromise = getGitpodService().server.guessRepositoryConfiguration(repo.cloneUrl);
+            const repoConfig = await getGitpodService().server.fetchRepositoryConfiguration(repo.cloneUrl);
+            if (repoConfig) {
+                // There is a .gitpod.yml in the repo --> skip to run prebuild
+                setRepoHasConfig(true);
+                return;
+            }
+            const guessedConfig = await guessedConfigPromise;
+            if (guessedConfig) {
+                // We've guessed the .gitpod.yml --> TODO: store in Project & run prebuild
+                setGuessedConfigString(guessedConfig);
+                return;
+            }
+            // --> TODO: store TASKS.Other in Project & run prebuild
+            setGuessedConfigString(TASKS.Other);
+        })();
+    }, [selectedRepo]);
+
+    useEffect(() => {
+        if (!selectedTeamOrUser || !selectedRepo) {
+            return;
+        }
+        if (!repoHasConfig && !guessedConfigString) {
+            return;
+        }
+        createProject(selectedTeamOrUser, selectedRepo);
+    }, [selectedTeamOrUser, selectedRepo, repoHasConfig, guessedConfigString]);
 
     useEffect(() => {
         if (reposInAccounts.length === 0) {
@@ -189,6 +223,10 @@ export default function NewProject() {
             console.error("No repo selected!")
             return;
         }
+        if (!repoHasConfig && !guessedConfigString) {
+            console.error("No detected configuration!");
+            return;
+        }
 
         const repoSlug = repo.path || repo.name;
 
@@ -203,6 +241,13 @@ export default function NewProject() {
                 appInstallationId: String(repo.installationId),
             });
 
+            if (guessedConfigString) {
+                await getGitpodService().server.setProjectConfiguration(project.id, guessedConfigString);
+            }
+
+            /* const result = */ await getGitpodService().server.triggerPrebuild(project.id, null);
+
+            // FIXME: open prebuild
             history.push(`/${User.is(teamOrUser) ? 'projects' : 't/'+teamOrUser.slug}/${project.slug}/configure`);
         } catch (error) {
             const message = (error && error?.message) || "Failed to create new project."

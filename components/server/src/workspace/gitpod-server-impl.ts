@@ -1568,6 +1568,7 @@ export class GitpodServerImpl implements GitpodServerWithTracing, Disposable {
         await this.projectsService.setProjectConfiguration(projectId, { '.gitpod.yml': configString });
     }
 
+    // FIXME(janx): Deprecated
     public async fetchProjectRepositoryConfiguration(ctx: TraceContext, projectId: string): Promise<string | undefined> {
         ctx.span?.setTag("projectId", projectId);
 
@@ -1584,6 +1585,7 @@ export class GitpodServerImpl implements GitpodServerWithTracing, Disposable {
         }
     }
 
+    // FIXME(janx): Deprecated
     public async guessProjectConfiguration(ctx: TraceContext, projectId: string): Promise<string | undefined> {
         ctx.span?.setTag("projectId", projectId);
 
@@ -1592,6 +1594,31 @@ export class GitpodServerImpl implements GitpodServerWithTracing, Disposable {
         await this.guardProjectOperation(user, projectId, "get");
         try {
             return await this.projectsService.guessProjectConfiguration(ctx, user, projectId);
+        } catch (error) {
+            if (UnauthorizedError.is(error)) {
+                throw new ResponseError(ErrorCodes.NOT_AUTHENTICATED, "Unauthorized", error.data);
+            }
+            throw error;
+        }
+    }
+
+    public async fetchRepositoryConfiguration(ctx: TraceContext, cloneUrl: string): Promise<string | undefined> {
+        ctx.span?.setTag("cloneUrl", cloneUrl);
+        const user = this.checkUser("fetchRepositoryConfiguration");
+        try {
+            return await this.projectsService.fetchRepositoryConfiguration(ctx, user, cloneUrl);
+        } catch (error) {
+            if (UnauthorizedError.is(error)) {
+                throw new ResponseError(ErrorCodes.NOT_AUTHENTICATED, "Unauthorized", error.data);
+            }
+            throw error;
+        }
+    }
+
+    public async guessRepositoryConfiguration(ctx: TraceContext, cloneUrl: string): Promise<string | undefined> {
+        const user = this.checkUser("guessRepositoryConfiguration");
+        try {
+            return await this.projectsService.guessRepositoryConfiguration(ctx, user, cloneUrl);
         } catch (error) {
             if (UnauthorizedError.is(error)) {
                 throw new ResponseError(ErrorCodes.NOT_AUTHENTICATED, "Unauthorized", error.data);
