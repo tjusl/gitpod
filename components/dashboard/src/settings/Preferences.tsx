@@ -12,7 +12,6 @@ import { PageWithSubMenu } from "../components/PageWithSubMenu";
 import PillLabel from "../components/PillLabel";
 import SelectableCard from "../components/SelectableCard";
 import Tooltip from "../components/Tooltip";
-import ideLogos from '../images/ideLogos';
 import { getGitpodService } from "../service/service";
 import { ThemeContext } from "../theme-context";
 import { UserContext } from "../user-context";
@@ -129,7 +128,7 @@ export default function Preferences() {
                             </ul></InfoBox>
                         }
                         <p className="text-left w-full text-gray-500">
-                            The <strong>JetBrains desktop IDEs</strong> are currently in beta. <a href="https://github.com/gitpod-io/gitpod/issues/6576" target="gitpod-feedback-issue" rel="noopener" className="gp-link">Send feedback</a> · <a href="https://www.gitpod.io/docs/integrations/jetbrains" target="_blank" rel="noopener" className="gp-link">Documentation</a>
+                            The <strong>JetBrains desktop IDEs</strong> are currently in beta. <a href="https://github.com/gitpod-io/gitpod/issues/6576" target="gitpod-feedback-issue" rel="noopener" className="gp-link">Send feedback</a> · <a href="https://www.gitpod.io/docs/integrations/jetbrains" target="_blank" rel="noopener noreferrer" className="gp-link">Documentation</a>
                         </p>
                     </>}
                 </>}
@@ -171,7 +170,7 @@ function renderIdeOption(option: IDEOption, selected: boolean, onSelect: () => v
     const card = <SelectableCard className="w-36 h-40" title={option.title} selected={selected} onClick={onSelect}>
         <div className="flex justify-center mt-3">
             <img className="w-16 filter-grayscale self-center"
-                src={option.logo.startsWith("http") ? option.logo : ideLogos[option.logo]} />
+                src={option.logo} alt="logo" />
         </div>
         {option.label ? <div className={`font-semibold text-sm ${selected ? 'text-green-500' : 'text-gray-500 dark:text-gray-400'} uppercase mt-2 ml-2 px-3 py-1 self-center`}>{option.label}</div> : <></>}
     </SelectableCard>;
