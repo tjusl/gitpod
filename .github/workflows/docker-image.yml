@@ -29,5 +29,4 @@ jobs:
         fetch-depth: 1
     - name: 🍳 Shake & bake README
       run: |
-        cd gitpod
         leeway build ${buildImage} -Dversion=${version} -DimageRepoBase=tjushilei
