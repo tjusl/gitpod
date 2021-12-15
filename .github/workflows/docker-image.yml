@@ -15,7 +15,7 @@ on:
 env:
   version: ${{ github.event.inputs.version || 'dev' }}
   imageRepoBase: ${{ github.event.inputs.imageRepoBase || 'tjushilei' }}
-  buildImage: ${{github.event.inputs.buildImage || 'components/image-builder-mk3:docker'}}
+  buildImage: ${{github.event.inputs.buildImage || 'components/image-builder-mk3:app'}}
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -43,4 +43,4 @@ jobs:
         # Move the gokart binary into your path
         mv ./gokart /usr/local/bin
         cd ..
-        leeway build ${buildImage} -Dversion=${version} -DimageRepoBase=tjushilei
+        leeway build ${buildImage}
