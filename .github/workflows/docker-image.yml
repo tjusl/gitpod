@@ -12,9 +12,6 @@ on:
       buildImage:
         description: 'buildImage'
         required: true
-      pkgName:
-        description: 'pkgName'
-        required: true
 env:
   version: ${{ github.event.inputs.version || 'dev' }}
   imageRepoBase: ${{ github.event.inputs.imageRepoBase || 'tjushilei' }}
