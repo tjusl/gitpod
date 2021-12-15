@@ -35,4 +35,5 @@ jobs:
         tar -zxvf leeway_0.2.9_Linux_x86_64.tar.gz
         export PATH=$PATH:/home/runner/work/gitpod/gitpod/leewaybin
         cd ..
+        echo ${buildImage} 
         leeway build ${buildImage} -Dversion=${version} -DimageRepoBase=tjushilei
