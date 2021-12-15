@@ -1,0 +1,33 @@
+   
+name: docker-image
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'version'
+        required: true
+      imageRepoBase:
+        description: 'imageRepoBase'
+        required: true
+      buildImage:
+        description: 'buildImage'
+        required: true
+      pkgName:
+        description: 'pkgName'
+        required: true
+env:
+  version: ${{ github.event.inputs.version || 'dev' }}
+  imageRepoBase: ${{ github.event.inputs.imageRepoBase || 'tjushilei' }}
+  buildImage: ${{github.event.inputs.buildImage || 'components/image-builder-mk3:docker'}}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@master
+      with:
+        fetch-depth: 1
+    - name: 🍳 Shake & bake README
+      run: |
+        cd gitpod
+        leeway build ${buildImage} -Dversion=${version} -DimageRepoBase=tjushilei
