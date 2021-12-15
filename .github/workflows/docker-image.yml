@@ -33,7 +33,7 @@ jobs:
         cd leewaybin
         wget https://github.com/gitpod-io/leeway/releases/download/v0.2.9/leeway_0.2.9_Linux_x86_64.tar.gz
         tar -zxvf leeway_0.2.9_Linux_x86_64.tar.gz
-        echo 'pwd'
+        pwd
         export PATH=$PATH:'pwd'
         cd ..
         leeway build ${buildImage} -Dversion=${version} -DimageRepoBase=tjushilei
