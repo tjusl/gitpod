@@ -52,7 +52,7 @@ export class PrebuildManager {
             }
             return false;
         } catch (err) {
-            TraceContext.logError({ span }, err);
+            TraceContext.setError({ span }, err);
             throw err;
         } finally {
             span.finish();
@@ -106,7 +106,7 @@ export class PrebuildManager {
                 normalizedContextURL: actual.normalizedContextURL
             };
 
-            if (this.shouldPrebuildIncrementally(actual.repository.cloneUrl)) {
+            if (this.shouldPrebuildIncrementally(actual.repository.cloneUrl, project)) {
                 const maxDepth = this.config.incrementalPrebuilds.commitHistory;
                 prebuildContext.commitHistory = await contextParser.fetchCommitHistory({ span }, user, contextURL, commit, maxDepth);
             }
@@ -131,7 +131,7 @@ export class PrebuildManager {
             }
             return { prebuildId: prebuild.id, wsid: workspace.id, done: false };
         } catch (err) {
-            TraceContext.logError({ span }, err);
+            TraceContext.setError({ span }, err);
             throw err;
         } finally {
             span.finish();
@@ -161,7 +161,7 @@ export class PrebuildManager {
             await this.workspaceStarter.startWorkspace({ span }, workspace, user);
             return { prebuildId: prebuild.id, wsid: workspace.id, done: false };
         } catch (err) {
-            TraceContext.logError({ span }, err);
+            TraceContext.setError({ span }, err);
             throw err;
         } finally {
             span.finish();
@@ -184,7 +184,10 @@ export class PrebuildManager {
         return true;
     }
 
-    protected shouldPrebuildIncrementally(cloneUrl: string): boolean {
+    protected shouldPrebuildIncrementally(cloneUrl: string, project?: Project): boolean {
+        if (project?.settings?.useIncrementalPrebuilds) {
+            return true;
+        }
         const trimRepoUrl = (url: string) => url.replace(/\/$/, '').replace(/\.git$/, '');
         const repoUrl = trimRepoUrl(cloneUrl);
         return this.config.incrementalPrebuilds.repositoryPasslist.some(url => trimRepoUrl(url) === repoUrl);
@@ -202,7 +205,7 @@ export class PrebuildManager {
             const context = await contextParser!.handle({ span }, user, contextURL);
             return await this.configProvider.fetchConfig({ span }, user, context as CommitContext);
         } catch (err) {
-            TraceContext.logError({ span }, err);
+            TraceContext.setError({ span }, err);
             throw err;
         } finally {
             span.finish();

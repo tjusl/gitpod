@@ -6,9 +6,14 @@
 
 import { PrebuiltWorkspaceState } from "./protocol";
 import { v4 as uuidv4 } from 'uuid';
+import { DeepPartial } from "./util/deep-partial";
 
 export interface ProjectConfig {
     '.gitpod.yml': string;
+}
+
+export interface ProjectSettings {
+    useIncrementalPrebuilds?: boolean;
 }
 
 export interface Project {
@@ -20,6 +25,7 @@ export interface Project {
     userId?: string;
     appInstallationId: string;
     config?: ProjectConfig;
+    settings?: ProjectSettings;
     creationTime: string;
     /** This is a flag that triggers the HARD DELETION of this entity */
     deleted?: boolean;
@@ -55,6 +61,8 @@ export namespace Project {
     }
 }
 
+export type PartialProject = DeepPartial<Project> & Pick<Project, 'id'>;
+
 export interface PrebuildWithStatus {
     info: PrebuildInfo;
     status: PrebuiltWorkspaceState;
@@ -64,6 +72,7 @@ export interface PrebuildWithStatus {
 export interface PrebuildInfo {
     id: string;
     buildWorkspaceId: string;
+    basedOnPrebuildId?: string;
 
     teamId?: string;
     userId?: string;

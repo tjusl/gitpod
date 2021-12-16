@@ -21,6 +21,7 @@ type Components struct {
 	Dashboard       Versioned `json:"dashboard"`
 	DBMigrations    Versioned `json:"dbMigrations"`
 	DBSync          Versioned `json:"dbSync"`
+	IDEProxy        Versioned `json:"ideProxy"`
 	ImageBuilder    Versioned `json:"imageBuilder"`
 	ImageBuilderMk3 struct {
 		Versioned
@@ -38,6 +39,7 @@ type Components struct {
 		CodeImage        Versioned `json:"codeImage"`
 		DockerUp         Versioned `json:"dockerUp"`
 		Supervisor       Versioned `json:"supervisor"`
+		Workspacekit     Versioned `json:"workspacekit"`
 		DesktopIdeImages struct {
 			CodeDesktopImage         Versioned `json:"codeDesktop"`
 			CodeDesktopImageInsiders Versioned `json:"codeDesktopInsiders"`

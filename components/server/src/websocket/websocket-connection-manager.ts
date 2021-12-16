@@ -31,7 +31,7 @@ const EVENT_CLIENT_CONTEXT_CLOSED = "EVENT_CLIENT_CONTEXT_CLOSED";
 
 /** TODO(gpl) Refine this list */
 export type WebsocketClientType = "browser" | "go-client" | "vs-code";
-export namespace WebsocketClientType {
+namespace WebsocketClientType {
     export function getClientType(req: express.Request): WebsocketClientType | undefined {
         const userAgent = req.headers["user-agent"];
 
@@ -58,9 +58,10 @@ export interface ClientMetadata {
     authLevel: WebsocketAuthenticationLevel,
     sessionId?: string;
     userId?: string;
+    type?: WebsocketClientType;
 }
 export namespace ClientMetadata {
-    export function from(userId: string | undefined, sessionId?: string): ClientMetadata {
+    export function from(userId: string | undefined, sessionId?: string, type?: WebsocketClientType): ClientMetadata {
         let id = "anonymous";
         let authLevel: WebsocketAuthenticationLevel = "anonymous";
         if (userId) {
@@ -70,24 +71,29 @@ export namespace ClientMetadata {
             id = `session-${sessionId}`;
             authLevel = "session";
         }
-        return { id, authLevel, userId, sessionId };
+        return { id, authLevel, userId, sessionId, type };
+    }
+
+    export function fromRequest(req: any) {
+        const expressReq = req as express.Request;
+        const user = expressReq.user;
+        const sessionId = expressReq.session?.id;
+        const type = WebsocketClientType.getClientType(expressReq);
+        return ClientMetadata.from(user?.id, sessionId, type);
     }
 }
 
 export class WebsocketClientContext {
     constructor(
-        /**
-         * We try to be as specific as we can when identifying client connections.
-         * If we now the userId, this will be the userId. If we just have a session, this is the sessionId (prefixed by `session-`).
-         * If it's a
-         */
-        public readonly clientId: string,
-
-        public readonly authLevel: WebsocketAuthenticationLevel
+        public readonly clientMetadata: ClientMetadata,
     ) {}
 
     /** This list of endpoints serving client connections 1-1 */
     protected servers: GitpodServerImpl[] = [];
+
+    get clientId(): string {
+        return this.clientMetadata.id;
+    }
 
     addEndpoint(server: GitpodServerImpl) {
         this.servers.push(server);
@@ -122,19 +128,13 @@ export class WebsocketConnectionManager implements ConnectionHandler {
         this.jsonRpcConnectionHandler = new GitpodJsonRpcConnectionHandler<GitpodApiClient>(
             this.path,
             this.createProxyTarget.bind(this),
-            this.createAccessGuard.bind(this),
-            this.createRateLimiter.bind(this),
-            this.getClientId.bind(this),
+            this.rateLimiterConfig,
         );
     }
 
     public onConnection(connection: MessageConnection, session?: object) {
         increaseApiConnectionCounter();
         this.jsonRpcConnectionHandler.onConnection(connection, session);
-    }
-
-    protected createAccessGuard(request?: object): FunctionAccessGuard {
-        return (request && (request as WithFunctionAccessGuard).functionGuard) || new AllAccessFunctionGuard();
     }
 
     protected createProxyTarget(client: JsonRpcProxy<GitpodApiClient>, request?: object): GitpodServerImpl {
@@ -167,7 +167,7 @@ export class WebsocketConnectionManager implements ConnectionHandler {
             clientRegion: takeFirst(expressReq.headers["x-glb-client-region"]),
         };
 
-        gitpodServer.initialize(client, user, resourceGuard, clientHeaderFields);
+        gitpodServer.initialize(client, user, resourceGuard, clientContext.clientMetadata, clientHeaderFields);
         client.onDidCloseConnection(() => {
             gitpodServer.dispose();
             increaseApiConnectionClosedCounter();
@@ -193,29 +193,14 @@ export class WebsocketConnectionManager implements ConnectionHandler {
     }
 
     protected getOrCreateClientContext(expressReq: express.Request): WebsocketClientContext {
-        const { id: clientId, authLevel } = this.getClientId(expressReq);
-        let ctx = this.contexts.get(clientId);
+        const metadata = ClientMetadata.fromRequest(expressReq);
+        let ctx = this.contexts.get(metadata.id);
         if (!ctx) {
-            ctx = new WebsocketClientContext(clientId, authLevel);
-            this.contexts.set(clientId, ctx);
+            ctx = new WebsocketClientContext(metadata);
+            this.contexts.set(metadata.id, ctx);
             this.events.emit(EVENT_CLIENT_CONTEXT_CREATED, ctx);
         }
         return ctx;
-    }
-
-    protected getClientId(req?: object): ClientMetadata {
-        const expressReq = req as express.Request;
-        const user = expressReq.user;
-        const sessionId = expressReq.session?.id;
-        return ClientMetadata.from(user?.id, sessionId);
-    }
-
-    protected createRateLimiter(req?: object): RateLimiter {
-        const { id: clientId } = this.getClientId(req);
-        return {
-            user: clientId,
-            consume: (method) => UserRateLimiter.instance(this.rateLimiterConfig).consume(clientId, method),
-        }
     }
 
     public onConnectionCreated(l: (server: GitpodServerImpl, req: express.Request) => void): Disposable {
@@ -251,25 +236,45 @@ class GitpodJsonRpcConnectionHandler<T extends object> extends JsonRpcConnection
     constructor(
         readonly path: string,
         readonly targetFactory: (proxy: JsonRpcProxy<T>, request?: object) => any,
-        readonly accessGuard: (request?: object) => FunctionAccessGuard,
-        readonly rateLimiterFactory: (request?: object) => RateLimiter,
-        readonly getClientId: (request?: object) => ClientMetadata,
+        readonly rateLimiterConfig: RateLimiterConfig,
     ) {
         super(path, targetFactory);
     }
 
     onConnection(connection: MessageConnection, request?: object): void {
+        const clientMetadata = ClientMetadata.fromRequest(request);
+
+        // trace the ws connection itself
+        const span = opentracing.globalTracer().startSpan("ws-connection");
+        const ctx = { span };
+        traceClientMetadata(ctx, clientMetadata);
+        TraceContext.setOWI(ctx, {
+            userId: clientMetadata.userId,
+            sessionId: clientMetadata.sessionId,
+        });
+        connection.onClose(() => span.finish());
+
         const factory = new GitpodJsonRpcProxyFactory<T>(
-            this.accessGuard(request),
-            this.rateLimiterFactory(request),
-            this.getClientId(request),
+            this.createAccessGuard(request),
+            this.createRateLimiter(clientMetadata.id, request),
+            clientMetadata,
+            ctx,
         );
         const proxy = factory.createProxy();
         factory.target = this.targetFactory(proxy, request);
         factory.listen(connection);
     }
 
+    protected createRateLimiter(clientId: string, req?: object): RateLimiter {
+        return {
+            user: clientId,
+            consume: (method) => UserRateLimiter.instance(this.rateLimiterConfig).consume(clientId, method),
+        }
+    }
 
+    protected createAccessGuard(request?: object): FunctionAccessGuard {
+        return (request && (request as WithFunctionAccessGuard).functionGuard) || new AllAccessFunctionGuard();
+    }
 }
 
 class GitpodJsonRpcProxyFactory<T extends object> extends JsonRpcProxyFactory<T> {
@@ -278,6 +283,7 @@ class GitpodJsonRpcProxyFactory<T extends object> extends JsonRpcProxyFactory<T>
         protected readonly accessGuard: FunctionAccessGuard,
         protected readonly rateLimiter: RateLimiter,
         protected readonly clientMetadata: ClientMetadata,
+        protected readonly connectionCtx: TraceContext,
     ) {
         super();
     }
@@ -289,40 +295,35 @@ class GitpodJsonRpcProxyFactory<T extends object> extends JsonRpcProxyFactory<T>
             increaseApiCallUserCounter(method, "anonymous");
         }
 
-        try {
-            await this.rateLimiter.consume(method);
-        } catch (rlRejected) {
-            if (rlRejected instanceof Error) {
-                log.error("Unexpected error in the rate limiter", rlRejected);
-                increaseApiCallCounter(method, 500);
-                throw rlRejected;
-            }
-            log.warn(`Rate limiter prevents accessing method '${method}' of user '${this.rateLimiter.user} due to too many requests.`, rlRejected);
-            increaseApiCallCounter(method, ErrorCodes.TOO_MANY_REQUESTS);
-            throw new ResponseError(ErrorCodes.TOO_MANY_REQUESTS, "too many requests", { "Retry-After": String(Math.round(rlRejected.msBeforeNext / 1000)) || 1 });
-        }
-
-        if (!this.accessGuard.canAccess(method)) {
-            log.error(`Request ${method} is not allowed`, { method, args });
-            increaseApiCallCounter(method, ErrorCodes.PERMISSION_DENIED);
-            throw new ResponseError(ErrorCodes.PERMISSION_DENIED, "not allowed");
-        }
-
-        const span = opentracing.globalTracer().startSpan(method);
+        const span = TraceContext.startSpan(method, undefined, this.connectionCtx.span);
         const ctx = { span };
+        const userId = this.clientMetadata.userId;
         try {
             // generic tracing data
-            TraceContext.addNestedTags(ctx, {
-                client: {
-                    id: this.clientMetadata.id,
-                    authLevel: this.clientMetadata.authLevel,
-                },
-            });
+            traceClientMetadata(ctx, this.clientMetadata);
             TraceContext.setOWI(ctx, {
-                userId: this.clientMetadata.userId,
+                userId,
                 sessionId: this.clientMetadata.sessionId,
             });
             TraceContext.setJsonRPCMetadata(ctx, method);
+
+            // rate limiting
+            try {
+                await this.rateLimiter.consume(method);
+            } catch (rlRejected) {
+                if (rlRejected instanceof Error) {
+                    log.error({ userId }, "Unexpected error in the rate limiter", rlRejected);
+                    throw rlRejected;
+                }
+                log.warn({ userId }, "Rate limiter prevents accessing method due to too many requests.", rlRejected, { method });
+                throw new ResponseError(ErrorCodes.TOO_MANY_REQUESTS, "too many requests", { "Retry-After": String(Math.round(rlRejected.msBeforeNext / 1000)) || 1 });
+            }
+
+            // access guard
+            if (!this.accessGuard.canAccess(method)) {
+                // logging/tracing is done in 'catch' clause
+                throw new ResponseError(ErrorCodes.PERMISSION_DENIED, `Request ${method} is not allowed`);
+            }
 
             // actual call
             const result = await this.target[method](ctx, ...args);    // we can inject TraceContext here because of GitpodServerWithTracing
@@ -331,14 +332,17 @@ class GitpodJsonRpcProxyFactory<T extends object> extends JsonRpcProxyFactory<T>
         } catch (e) {
             if (e instanceof ResponseError) {
                 increaseApiCallCounter(method, e.code);
-                TraceContext.logJsonRPCError(ctx, method, e);
-                log.info(`Request ${method} unsuccessful: ${e.code}/"${e.message}"`, { method, args });
+                TraceContext.setJsonRPCError(ctx, method, e);
+
+                log.info({ userId }, `Request ${method} unsuccessful: ${e.code}/"${e.message}"`, { method, args });
             } else {
+                TraceContext.setError(ctx, e);  // this is a "real" error
+
                 const err = new ResponseError(500, "internal server error");
                 increaseApiCallCounter(method, err.code);
-                TraceContext.logJsonRPCError(ctx, method, err);
+                TraceContext.setJsonRPCError(ctx, method, err);
 
-                log.error(`Request ${method} failed with internal server error`, e, { method, args });
+                log.error({ userId }, `Request ${method} failed with internal server error`, e, { method, args });
             }
             throw e;
         } finally {
@@ -350,4 +354,14 @@ class GitpodJsonRpcProxyFactory<T extends object> extends JsonRpcProxyFactory<T>
         throw new ResponseError(RPCErrorCodes.InvalidRequest, "notifications are not supported");
     }
 
+}
+
+function traceClientMetadata(ctx: TraceContext, clientMetadata: ClientMetadata) {
+    TraceContext.addNestedTags(ctx, {
+        client: {
+            id: clientMetadata.id,
+            authLevel: clientMetadata.authLevel,
+            type: clientMetadata.type,
+        },
+    });
 }

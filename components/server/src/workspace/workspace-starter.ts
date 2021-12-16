@@ -133,17 +133,16 @@ export class WorkspaceStarter {
 
             return await this.actuallyStartWorkspace({ span }, instance, workspace, user, mustHaveBackup, ideConfig, userEnvVars, options.rethrow, forceRebuild);
         } catch (e) {
-            TraceContext.logError({ span }, e);
+            TraceContext.setError({ span }, e);
             throw e;
         } finally {
             span.finish();
         }
     }
 
-    // Note: this function does not expect to be awaited for by its caller. This means that it takes care of error handling itself
-    //       and creates its tracing span as followFrom rather than the usual childOf reference.
+    // Note: this function does not expect to be awaited for by its caller. This means that it takes care of error handling itself.
     protected async actuallyStartWorkspace(ctx: TraceContext, instance: WorkspaceInstance, workspace: Workspace, user: User, mustHaveBackup: boolean, ideConfig: IDEConfig, userEnvVars?: UserEnvVar[], rethrow?: boolean, forceRebuild?: boolean): Promise<StartWorkspaceResult> {
-        const span = TraceContext.startAsyncSpan("actuallyStartWorkspace", ctx);
+        const span = TraceContext.startSpan("actuallyStartWorkspace", ctx);
 
         try {
             // build workspace image
@@ -233,7 +232,7 @@ export class WorkspaceStarter {
 
             return { instanceID: instance.id, workspaceURL: resp.url };
         } catch (err) {
-            TraceContext.logError({ span }, err);
+            TraceContext.setError({ span }, err);
             await this.failInstanceStart({ span }, err, workspace, instance);
 
             if (rethrow) {
@@ -249,7 +248,7 @@ export class WorkspaceStarter {
     }
 
     protected async notifyOnPrebuildQueued(ctx: TraceContext, workspaceId: string) {
-        const span = TraceContext.startAsyncSpan("notifyOnPrebuildQueued", ctx);
+        const span = TraceContext.startSpan("notifyOnPrebuildQueued", ctx);
         const prebuild = await this.workspaceDb.trace({span}).findPrebuildByWorkspaceID(workspaceId);
         if (prebuild) {
             const info = (await this.workspaceDb.trace({span}).findPrebuildInfos([prebuild.id]))[0];
@@ -264,7 +263,7 @@ export class WorkspaceStarter {
      * workspace manager. In this case we need to make sure we also fulfil the tasks of the bridge (e.g. for prebulds).
      */
     protected async failInstanceStart(ctx: TraceContext, err: Error, workspace: Workspace, instance: WorkspaceInstance) {
-        const span = TraceContext.startAsyncSpan("failInstanceStart", ctx);
+        const span = TraceContext.startSpan("failInstanceStart", ctx);
 
         try {
             // We may have never actually started the workspace which means that ws-manager-bridge never set a workspace status.
@@ -293,7 +292,7 @@ export class WorkspaceStarter {
                 }
             }
         } catch (err) {
-            TraceContext.logError({span}, err);
+            TraceContext.setError({span}, err);
             log.error({workspaceId: workspace.id, instanceId: instance.id, userId: workspace.ownerId}, "cannot properly fail workspace instance during start", err);
         }
     }
@@ -376,7 +375,7 @@ export class WorkspaceStarter {
     }
 
     protected async prepareBuildRequest(ctx: TraceContext, workspace: Workspace, imgsrc: WorkspaceImageSource, user: User, ignoreBaseImageresolvedAndRebuildBase: boolean = false): Promise<{src: BuildSource, auth: BuildRegistryAuth, disposable?: Disposable}> {
-        const span = TraceContext.startAsyncSpan("prepareBuildRequest", ctx);
+        const span = TraceContext.startSpan("prepareBuildRequest", ctx);
 
         try {
             // if our workspace ever had its base image built, we do not want to build it again. In this case we use a build source reference
@@ -466,7 +465,7 @@ export class WorkspaceStarter {
 
             throw new Error("unknown workspace image source");
         } catch (e) {
-            TraceContext.logError({ span }, e);
+            TraceContext.setError({ span }, e);
             throw e;
         } finally {
             span.finish()
@@ -490,7 +489,7 @@ export class WorkspaceStarter {
 
             return result.getStatus() != BuildStatus.DONE_SUCCESS;
         } catch (err) {
-            TraceContext.logError({ span }, err);
+            TraceContext.setError({ span }, err);
             throw err;
         } finally {
             span.finish();
@@ -566,7 +565,7 @@ export class WorkspaceStarter {
             instance = await this.workspaceDb.trace({ span }).updateInstancePartial(instance.id, { status: { ...instance.status, phase: 'preparing', conditions: { failed: message }, message } });
             await this.messageBus.notifyOnInstanceUpdate(workspace.ownerId, instance);
 
-            TraceContext.logError({ span }, err);
+            TraceContext.setError({ span }, err);
             const looksLikeUserError = (msg: string): boolean => {
                 return msg.startsWith("build failed:");
             };

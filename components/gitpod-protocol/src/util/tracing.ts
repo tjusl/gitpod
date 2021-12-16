@@ -8,7 +8,7 @@
 import * as opentracing from 'opentracing';
 import { TracingConfig, initTracerFromEnv } from 'jaeger-client';
 import { Sampler, SamplingDecision } from './jaeger-client-types';
-import { initGlobalTracer } from 'opentracing';
+import { followsFrom, initGlobalTracer } from 'opentracing';
 import { injectable } from 'inversify';
 import { ResponseError } from 'vscode-jsonrpc';
 import { log, LogContext } from './logging';
@@ -22,38 +22,35 @@ export type TraceContextWithSpan = TraceContext & {
 
 
 export namespace TraceContext {
-    export function startSpan(operation: string, parentCtx?: TraceContext): opentracing.Span {
-        let options: opentracing.SpanOptions | undefined = undefined;
+    export function startSpan(operation: string, parentCtx?: TraceContext, ...referencedSpans: (opentracing.Span | undefined)[]): opentracing.Span {
+        const options: opentracing.SpanOptions = {};
         if (parentCtx) {
-            options = {
-                childOf: parentCtx.span
-            };
+            options.childOf = parentCtx.span;
         }
+        if (referencedSpans) {
+            // note: allthough followsForm's type says it takes 'opentracing.Span | opentracing.SpanContext', it only works with SpanContext (typing mismatch)
+            options.references = referencedSpans.filter(s => s !== undefined).map(s => followsFrom(s!.context()));
+        }
+
         return opentracing.globalTracer().startSpan(operation, options);
     }
 
-    export function childContextWithSpan(operation: string, parentCtx: TraceContext): TraceContextWithSpan {
+    export function childContext(operation: string, parentCtx: TraceContext): TraceContextWithSpan {
         const span = startSpan(operation, parentCtx);
         return { span };
     }
 
-    export function startAsyncSpan(operation: string, ctx: TraceContext): opentracing.Span {
-        const options: opentracing.SpanOptions = {};
-        if (!!ctx.span) {
-            options.references = [opentracing.followsFrom(ctx.span.context())];
-        }
-        return opentracing.globalTracer().startSpan(operation, options);
-    }
-
-    export function logError(ctx: TraceContext, err: Error) {
+    export function setError(ctx: TraceContext, err: Error) {
         if (!ctx.span) {
             return;
         }
 
-        ctx.span.log({
-            "error": err.message,
-            "stacktrace": err.stack
-        })
+        TraceContext.addNestedTags(ctx, {
+            error: {
+                message: err.message,
+                stacktrace: err.stack,
+            },
+        });
         ctx.span.setTag("error", true);
     }
 
@@ -74,11 +71,11 @@ export namespace TraceContext {
         addNestedTags(ctx, tags);
     }
 
-    export function logJsonRPCError(ctx: TraceContext, method: string, err: ResponseError<any>) {
+    export function setJsonRPCError(ctx: TraceContext, method: string, err: ResponseError<any>) {
         if (!ctx.span) {
             return;
         }
-        logError(ctx, err);
+        // not use setError bc this is (most likely) a working operation
 
         setJsonRPCMetadata(ctx);
         // https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/rpc.md#json-rpc

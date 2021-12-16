@@ -53,6 +53,8 @@ import { LocalMessageBroker } from "../messaging/local-message-broker";
 import { CachingBlobServiceClientProvider } from '@gitpod/content-service/lib/sugar';
 import { IDEOptions } from '@gitpod/gitpod-protocol/lib/ide-protocol';
 import { IDEConfigService } from '../ide-config';
+import { PartialProject } from '@gitpod/gitpod-protocol/src/teams-projects-protocol';
+import { ClientMetadata } from '../websocket/websocket-connection-manager';
 
 // shortcut
 export const traceWI = (ctx: TraceContext, wi: Omit<LogContext, "userId">) => TraceContext.setOWI(ctx, wi);    // userId is already taken care of in WebsocketConnectionManager
@@ -110,6 +112,7 @@ export class GitpodServerImpl implements GitpodServerWithTracing, Disposable {
 
     /** Id the uniquely identifies this server instance */
     public readonly uuid: string = uuidv4();
+    public readonly clientMetadata: ClientMetadata;
     protected clientHeaderFields: ClientHeaderFields;
     protected resourceAccessGuard: ResourceAccessGuard;
     protected client: GitpodApiClient | undefined;
@@ -122,7 +125,7 @@ export class GitpodServerImpl implements GitpodServerWithTracing, Disposable {
         this.disposables.dispose();
     }
 
-    initialize(client: GitpodApiClient | undefined, user: User | undefined, accessGuard: ResourceAccessGuard, clientHeaderFields: ClientHeaderFields): void {
+    initialize(client: GitpodApiClient | undefined, user: User | undefined, accessGuard: ResourceAccessGuard, clientMetadata: ClientMetadata, clientHeaderFields: ClientHeaderFields): void {
         if (client) {
             this.disposables.push(Disposable.create(() => this.client = undefined));
         }
@@ -130,6 +133,7 @@ export class GitpodServerImpl implements GitpodServerWithTracing, Disposable {
         this.user = user;
         this.resourceAccessGuard = accessGuard;
         this.clientHeaderFields = clientHeaderFields;
+        (this.clientMetadata as any) = clientMetadata;
 
         log.debug({ userId: this.user?.id }, `clientRegion: ${clientHeaderFields.clientRegion}`);
         log.debug({ userId: this.user?.id }, 'initializeClient');
@@ -153,7 +157,7 @@ export class GitpodServerImpl implements GitpodServerWithTracing, Disposable {
             try {
                 cb();
             } catch (e) {
-                TraceContext.logError(ctx, e);
+                TraceContext.setError(ctx, e);
                 throw e;
             } finally {
                 span.finish();
@@ -760,7 +764,7 @@ export class GitpodServerImpl implements GitpodServerWithTracing, Disposable {
                 .filter(info => info && info.workspace.type === "regular" && sameContext(info))
                 .map(info => info!);
         } catch (e) {
-            TraceContext.logError(ctx, e);
+            TraceContext.setError(ctx, e);
             throw e;
         } finally {
             span.finish();
@@ -1635,18 +1639,6 @@ export class GitpodServerImpl implements GitpodServerWithTracing, Disposable {
         throw new ResponseError(ErrorCodes.EE_FEATURE, `Cancelling Prebuilds is implemented in Gitpod's Enterprise Edition`);
     }
 
-    public async setProjectConfiguration(ctx: TraceContext, projectId: string, configString: string): Promise<void> {
-        traceAPIParams(ctx, { projectId }); // filter configString because of size
-
-        const user = this.checkAndBlockUser("setProjectConfiguration");
-        await this.guardProjectOperation(user, projectId, "update");
-        const parseResult = this.gitpodParser.parse(configString);
-        if (parseResult.validationErrors) {
-            throw new Error(`This configuration could not be parsed: ${parseResult.validationErrors.join(', ')}`);
-        }
-        await this.projectsService.setProjectConfiguration(projectId, { '.gitpod.yml': configString });
-    }
-
     public async fetchRepositoryConfiguration(ctx: TraceContext, cloneUrl: string): Promise<string | undefined> {
         traceAPIParams(ctx, { cloneUrl });
         const user = this.checkUser("fetchRepositoryConfiguration");
@@ -1711,6 +1703,44 @@ export class GitpodServerImpl implements GitpodServerWithTracing, Disposable {
             }
             throw error;
         }
+    }
+
+    public async setProjectConfiguration(ctx: TraceContext, projectId: string, configString: string): Promise<void> {
+        traceAPIParams(ctx, { projectId }); // filter configString because of size
+
+        const user = this.checkAndBlockUser("setProjectConfiguration");
+        await this.guardProjectOperation(user, projectId, "update");
+
+        const parseResult = this.gitpodParser.parse(configString);
+        if (parseResult.validationErrors) {
+            throw new Error(`This configuration could not be parsed: ${parseResult.validationErrors.join(', ')}`);
+        }
+        await this.projectsService.updateProjectPartial({
+            id: projectId,
+            config: { '.gitpod.yml': configString },
+        });
+    }
+
+    public async updateProjectPartial(ctx: TraceContext, partialProject: PartialProject): Promise<void> {
+        traceAPIParams(ctx, {
+            // censor everything irrelevant
+            partialProject: {
+                id: partialProject.id,
+                settings: partialProject.settings,
+            }
+        });
+
+        const user = this.checkUser("updateProjectPartial");
+        await this.guardProjectOperation(user, partialProject.id, "update");
+
+        const partial: PartialProject = { id: partialProject.id };
+        const allowedFields: (keyof Project)[] = ['settings']; // Don't add 'config' here! Please use `setProjectConfiguration` instead to parse & validate configs
+        for (const f of allowedFields) {
+            if (f in partialProject) {
+                (partial[f] as any) = partialProject[f];
+            }
+        }
+        await this.projectsService.updateProjectPartial(partial);
     }
 
     public async getContentBlobUploadUrl(ctx: TraceContext, name: string): Promise<string> {

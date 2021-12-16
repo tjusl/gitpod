@@ -6,13 +6,14 @@
 
 import { inject, injectable } from "inversify";
 import { DBWithTracing, ProjectDB, TeamDB, TracedWorkspaceDB, UserDB, WorkspaceDB } from "@gitpod/gitpod-db/lib";
-import { Branch, CommitContext, PrebuildWithStatus, CreateProjectParams, FindPrebuildsParams, Project, ProjectConfig, User, WorkspaceConfig } from "@gitpod/gitpod-protocol";
+import { Branch, CommitContext, PrebuildWithStatus, CreateProjectParams, FindPrebuildsParams, Project, User, WorkspaceConfig } from "@gitpod/gitpod-protocol";
 import { TraceContext } from "@gitpod/gitpod-protocol/lib/util/tracing";
 import { HostContextProvider } from "../auth/host-context-provider";
 import { FileProvider, RepoURL } from "../repohost";
 import { log } from '@gitpod/gitpod-protocol/lib/util/logging';
 import { ContextParser } from "../workspace/context-parser-service";
 import { ConfigInferrer } from "./config-inferrer";
+import { PartialProject } from "@gitpod/gitpod-protocol/src/teams-projects-protocol";
 
 @injectable()
 export class ProjectsService {
@@ -178,10 +179,6 @@ export class ProjectsService {
         return result;
     }
 
-    async setProjectConfiguration(projectId: string, config: ProjectConfig): Promise<void> {
-        return this.projectDB.setProjectConfiguration(projectId, config);
-    }
-
     protected async getRepositoryFileProviderAndCommitContext(ctx: TraceContext, user: User, cloneUrl: string): Promise<{fileProvider: FileProvider, commitContext: CommitContext}> {
         const normalizedContextUrl = this.contextParser.normalizeContextURL(cloneUrl);
         const commitContext = (await this.contextParser.handle(ctx, user, normalizedContextUrl)) as CommitContext;
@@ -227,6 +224,10 @@ export class ProjectsService {
         }
         const configString = `tasks:\n  - ${config.tasks.map(task => Object.entries(task).map(([phase, command]) => `${phase}: ${command}`).join('\n    ')).join('\n  - ')}`;
         return configString;
+    }
+
+    async updateProjectPartial(partialProject: PartialProject): Promise<void> {
+        return this.projectDB.updateProject(partialProject);
     }
 
 }
