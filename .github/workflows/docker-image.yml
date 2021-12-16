@@ -24,6 +24,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+    - name: Fork Sync
+      uses: tgymnich/fork-sync@v1.2.1
+      with:
+        owner: tjusl
+        github_token: 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
     - name: Setup Node.js environment
       uses: actions/setup-node@v2.5.0
       with:
