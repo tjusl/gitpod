@@ -25,10 +25,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Fork Sync
-      uses: tgymnich/fork-sync@v1.2.1
+      uses: VitorNoVictor/fork-news@v1.0.0
       with:
-        owner: tjusl
-        github_token: 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
+        access-token: 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
+        from-repository: https://github.com/gitpod-io/gitpod
+        to-branch: main
+        from-branch: main
+        pr-title:  Fork News - Updates from the parent repository
+        pr-description: Here are the latest changes from the parent repository.
     - name: Setup Node.js environment
       uses: actions/setup-node@v2.5.0
       with:
