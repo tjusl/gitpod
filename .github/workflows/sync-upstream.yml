@@ -11,7 +11,7 @@ jobs:
       uses: VitorNoVictor/fork-news@v1.0.0
       with:
         access-token: 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
-        from-repository: https://github.com/gitpod-io/gitpod
+        from-repository: gitpod-io/gitpod
         to-branch: main
         from-branch: main
         pr-title:  Fork News - Updates from the parent repository
