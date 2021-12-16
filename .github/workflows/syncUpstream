@@ -1,4 +1,7 @@
 name: docker-image
+on:
+  schedule:
+    - cron: "0 0 * * *"
 jobs:
   build:
     runs-on: ubuntu-latest
