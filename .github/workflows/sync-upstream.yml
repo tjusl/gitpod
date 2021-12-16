@@ -1,4 +1,4 @@
-name: docker-image
+name: sync-upstream
 on:
   schedule:
     - cron: "0 0 * * *"
