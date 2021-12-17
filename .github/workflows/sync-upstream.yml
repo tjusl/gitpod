@@ -12,14 +12,9 @@ jobs:
         git config --global user.email "tjusl@126.com"
         git config --global user.name "tjusl"
     
-    - name: Fork Sync
-      uses: tgymnich/fork-sync@v1.2.1
+    - name: fork-sync-all-branches
+      uses: anatawa12/fork-sync-all-branches@v1.0.1
       with:
         owner: gitpod-io
         github_token: ${{secrets.ACCESS_TOKEN}}
-        head: main
-        base: main
-        merge_method: merge
-        pr_title: fork sync
-        pr_message: fork
-        ignore_fail: failure
+        origin: gitpod-io/gitpod
