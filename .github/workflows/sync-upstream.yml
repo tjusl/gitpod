@@ -12,9 +12,14 @@ jobs:
         git config --global user.email "tjusl@126.com"
         git config --global user.name "tjusl"
     
-    - name: fork-sync-all-branches
-      uses: anatawa12/fork-sync-all-branches@v1.0.1
+    - name: Sync-Fork-action
+      uses: XueMoMo/Sync-Fork-action@v1.0.6
       with:
         owner: gitpod-io
         github_token: ${{secrets.ACCESS_TOKEN}}
-        origin: gitpod-io/gitpod
+        upstream_repository: gitpod-io/gitpod
+        upstream_branch: main
+        target_branch: main
+        git_user: tjusl
+        git_email: tjushilei@126.com
+        
