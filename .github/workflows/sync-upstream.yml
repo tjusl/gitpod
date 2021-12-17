@@ -14,7 +14,7 @@ jobs:
     - name: Fork Sync
       uses: VitorNoVictor/fork-news@v1.0.0
       with:
-        access-token: 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
+        access-token: ${{token1}}
         from-repository: gitpod-io/gitpod
         to-branch: main
         from-branch: main
