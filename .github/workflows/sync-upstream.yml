@@ -17,9 +17,13 @@ jobs:
         git config --global user.email "tjusl@126.com"
         git config --global user.name "tjusl"
     
-    - name: Sync with upstream (rebase)
-      run: |
-        wget -O /tmp/__sync.sh https://raw.githubusercontent.com/tjusl/gitpod/main/scripts/sync-with-upstream.sh
-        chmod +x /tmp/__sync.sh
-        /tmp/__sync.sh  $(pwd) ${{ env.PARENT_COMMIT }} ${{ env.UPDATE_BRANCH }} "cmict code web server initial commit" true
+    - name: Upstream Sync
+      uses: aormsby/Fork-Sync-With-Upstream-action@v3.2
+      with:
+        target_sync_branch: main
+        target_repo_token: ${{ secrets.ACCESS_TOKEN }}
+        upstream_repo_access_token: ${{ secrets.ACCESS_TOKEN }}
+        upstream_sync_repo: gitpod-io/gitpod
+        upstream_sync_branch: main
+        
         
