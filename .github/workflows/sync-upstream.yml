@@ -35,6 +35,8 @@ jobs:
         target_repo_token: ${{ secrets.ACCESS_TOKEN }}
         upstream_sync_branch: main
         upstream_sync_repo: gitpod-io/gitpod
+        git_config_user: tjusl
+        git_config_email: tjushilei@126.com
 
         # Set test_mode true to run tests instead of the true action!!
         test_mode: false
