@@ -20,10 +20,10 @@ jobs:
     - name: Upstream Sync
       uses: aormsby/Fork-Sync-With-Upstream-action@v3.2
       with:
-        target_sync_branch: main
-        target_repo_token: ${{ secrets.ACCESS_TOKEN }}
-        upstream_repo_access_token: ${{ secrets.ACCESS_TOKEN }}
-        upstream_sync_repo: gitpod-io/gitpod
-        upstream_sync_branch: main
-        
+        target_sync_branch: 'main'
+        target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+        upstream_sync_repo: 'gitpod-io/gitpod'
+        upstream_sync_branch: 'main'
+        host_domain: 'github.com'
+        shallow_since: '1 hour ago'
         
