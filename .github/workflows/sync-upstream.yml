@@ -3,6 +3,11 @@ on:
   push: 
   schedule:
     - cron: "0 0 * * *"
+env:
+  # Default values will be used by cron job
+  PARENT_COMMIT: ${{ github.event.inputs.parent_commit || 'upstream/main' }}
+  UPDATE_BRANCH: ${{ github.event.inputs.update_branch || 'main' }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -12,14 +17,9 @@ jobs:
         git config --global user.email "tjusl@126.com"
         git config --global user.name "tjusl"
     
-    - name: Sync-Fork-action
-      uses: XueMoMo/Sync-Fork-action@v1.0.6
-      with:
-        owner: gitpod-io
-        github_token: ${{secrets.ACCESS_TOKEN}}
-        upstream_repository: gitpod-io/gitpod
-        upstream_branch: main
-        target_branch: main
-        git_user: tjusl
-        git_email: tjushilei@126.com
+    - name: Sync with upstream (rebase)
+      run: |
+        wget -O /tmp/__sync.sh https://raw.githubusercontent.com/tjusl/gitpod/main/scripts/sync-with-upstream.sh
+        chmod +x /tmp/__sync.sh
+        /tmp/__sync.sh  $(pwd) ${{ env.PARENT_COMMIT }} ${{ env.UPDATE_BRANCH }} "cmict code web server initial commit" true
         
