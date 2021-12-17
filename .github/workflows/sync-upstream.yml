@@ -10,7 +10,7 @@ jobs:
     - name: git config
       run: |
         git config --global user.email "tjusl@126.com"
-        git config --global user.name "shilei"
+        git config --global user.name "tjusl"
     - name: Fork Sync
       uses: VitorNoVictor/fork-news@v1.0.0
       with:
