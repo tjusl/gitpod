@@ -7,13 +7,22 @@ on:
 
 jobs:
   sync:
-
     runs-on: ubuntu-latest
-
     steps:
-      - uses: tgymnich/fork-sync@v1.4
-        with:
-          token: ${{ secrets.GIT_TOKEN }}
-          owner: gitpod-io
-          base: main
-          head: main
+    - name: GitHub Forker
+      uses: wayfair-incubator/forker@v0.0.2
+      with: 
+     # GitHub API token with forking permissions
+        token: ${{secrets.GIT_TOKEN}}
+    # Owner of GitHub repository being forked
+        owner: gitpod
+    # GitHub repository being forked
+        repo: gitpod-io
+    # GitHub organization to fork the repository into
+        org: tjusl
+    # GitHub user requesting the fork
+        user: tjusl
+    # Add GitHub user to organization if missing
+    addUser: # optional
+    # List of allowed licenses for repository being forked
+    licenseAllowlist: # optional, default is undefined
