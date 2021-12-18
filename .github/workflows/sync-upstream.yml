@@ -9,16 +9,22 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-    - name: GitHub Forker
-      uses: wayfair-incubator/forker@v0.0.2
-      with: 
-     # GitHub API token with forking permissions
-        token: ${{secrets.GIT_TOKEN}}
-    # Owner of GitHub repository being forked
-        owner: gitpod
-    # GitHub repository being forked
-        repo: gitpod-io
-    # GitHub organization to fork the repository into
-        org: tjusl
-    # GitHub user requesting the fork
-        user: tjusl
+    - name: Upstream Sync
+  # You may pin to the exact commit or the version.
+  # uses: aormsby/Fork-Sync-With-Upstream-action@8bfb7e7a0dfc91410c1b223d9b1bc9d1dafcbc08
+      uses: aormsby/Fork-Sync-With-Upstream-action@v3.2
+      with:
+    # Branch receiving updates from the upstream repo, e.g. => main, master, prod
+        target_sync_branch: main
+    # Input for passing secrets.GITHUB_TOKEN when disabling persistent auth in the checkout step
+        target_repo_token: ${{secrets.GIT_TOKEN}}
+    # Token for accessing the remote repo through HTTPS authentication
+        upstream_repo_access_token: ${{secrets.GIT_TOKEN}}
+    # Upstream repository, e.g. => aormsby/Fork-Sync-With-Upstream-action
+        upstream_sync_repo: gitpod-io/gitpod
+    # Branch to sync from, e.g. => main, master, dev
+      upstream_sync_branch: main
+    # Git user credentials for sigining commit, (set to "null" for no config)
+      git_config_user: tjusl
+    # Git email credentials for sigining commit (set to "null" for no config)
+      git_config_email: tjushilei@126.com
