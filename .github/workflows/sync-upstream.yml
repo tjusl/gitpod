@@ -22,7 +22,3 @@ jobs:
         org: tjusl
     # GitHub user requesting the fork
         user: tjusl
-    # Add GitHub user to organization if missing
-    addUser: # optional
-    # List of allowed licenses for repository being forked
-    licenseAllowlist: # optional, default is undefined
