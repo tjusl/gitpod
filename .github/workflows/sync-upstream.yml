@@ -21,8 +21,8 @@ jobs:
     # Upstream repository, e.g. => aormsby/Fork-Sync-With-Upstream-action
         upstream_sync_repo: gitpod-io/gitpod
     # Branch to sync from, e.g. => main, master, dev
-      upstream_sync_branch: main
+        upstream_sync_branch: main
     # Git user credentials for sigining commit, (set to "null" for no config)
-      git_config_user: tjusl
+        git_config_user: tjusl
     # Git email credentials for sigining commit (set to "null" for no config)
-      git_config_email: tjushilei@126.com
+        git_config_email: tjushilei@126.com
